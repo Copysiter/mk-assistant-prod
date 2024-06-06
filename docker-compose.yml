@@ -1,0 +1,131 @@
+version: '3.3'
+
+services:
+
+  main_db:
+    image: postgres:12
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - main/.env
+    ports:
+      - '5432:5432'
+
+  keystore_db:
+    image: postgres:12
+    volumes:
+      - keystore_data:/var/lib/postgresql/data/
+    env_file:
+      - keystore/.env
+    depends_on:
+      - main_db
+
+  pgadmin:
+    container_name: pgadmin4
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: 123
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - main_db
+      - keystore_db
+    restart: always
+
+  qdrant:
+    image: qdrant/qdrant:v1.6.1
+    restart: always
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      QDRANT__STORAGE__PERSISTENCE_PERIOD_SEC: 10
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  keystore:
+    build:
+      context: keystore/
+      dockerfile: Dockerfile
+    volumes:
+      - ./keystore/src/:/app/
+    env_file:
+      - keystore/.env
+    tty: true
+    links:
+      - 'keystore_db'
+    depends_on:
+      - keystore_db
+    ports:
+      - '8001:8000'
+
+  speech:
+    build:
+      context: ./speech/
+      dockerfile: Dockerfile
+    volumes:
+      - ./speech/src/:/app/
+    env_file:
+      - ./speech/.env
+    tty: true
+    ports:
+      - '8002:8000'
+
+  fastembed:
+    build:
+      context: ./fastembed/
+      dockerfile: Dockerfile
+    volumes:
+      - ./fastembed/src/:/app/
+    env_file:
+      - ./fastembed/.env
+    tty: true
+    ports:
+      - '8003:8000'
+
+  main:
+    build:
+      context: ./main/
+      dockerfile: Dockerfile
+    volumes:
+      - ./main/src/:/app/
+    env_file:
+      - ./main/.env
+    tty: true
+    links:
+      - 'main_db'
+    depends_on:
+      - main_db
+    ports:
+      - '8000:8000'
+
+  tgbot:
+    build:
+      context: ./tgbot/
+      dockerfile: Dockerfile
+    volumes:
+      - ./tgbot/:/app/
+    env_file:
+      - ./tgbot/.env
+    tty: true
+
+  web:
+    build:
+      context: ./web/
+      dockerfile: Dockerfile
+    volumes:
+      - ./web/src/:/app/
+    env_file:
+      - ./web/.env
+    tty: true
+    ports:
+      - '80:8501'
+
+volumes:
+  postgres_data:
+  keystore_data:
+  pgadmin-data:
+  qdrant_data:
